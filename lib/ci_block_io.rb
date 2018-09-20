@@ -132,8 +132,10 @@ module CiBlockIo
   def self.api_call(endpoint)
 
     body = nil
+    base_url = @base_url.gsub('API_CALL',endpoint[0]).gsub('VERSION', 'v'+@version.to_s)
+    return nil if base_url.blank?
 
-    response = @client.post("#{@base_url.gsub('API_CALL',endpoint[0]).gsub('VERSION', 'v'+@version.to_s) + @api_key}", endpoint[1])
+    response = @client.post("#{base_url + @api_key}", endpoint[1])
       
     begin
       body = Oj.load(response.body)
