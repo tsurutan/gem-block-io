@@ -1,4 +1,4 @@
-require 'block_io/version'
+require 'ci_block_io/version'
 require 'httpclient'
 require 'oj'
 require 'ecdsa'
@@ -8,7 +8,7 @@ require 'pbkdf2'
 require 'securerandom'
 require 'base64'
 
-module BlockIo
+module CiBlockIo
 
   @api_key = nil
   @base_url = nil
