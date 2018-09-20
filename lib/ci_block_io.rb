@@ -17,6 +17,11 @@ module CiBlockIo
   @client = nil
   @conn_pool = nil
   @version = nil
+  @mock_response = {}
+
+  def self.mock(method_name, response)
+    @mock_response[method_name.to_s] = response
+  end
 
   def self.set_options(args = {})
     # initialize BlockIo
@@ -130,6 +135,7 @@ module CiBlockIo
   private
   
   def self.api_call(endpoint)
+    return @mock_response[endpoint[0]] if @mock_response.keys.include?(endpoint[0])
 
     body = nil
     base_url = @base_url.gsub('API_CALL',endpoint[0]).gsub('VERSION', 'v'+@version.to_s)
