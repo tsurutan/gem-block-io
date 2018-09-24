@@ -8,6 +8,9 @@ require 'pbkdf2'
 require 'securerandom'
 require 'base64'
 
+class CiBlockIoWithdrawException < StandardError
+end
+
 module CiBlockIo
 
   @api_key = nil
@@ -62,7 +65,7 @@ module CiBlockIo
   def self.withdraw(args = {}, method_name = 'withdraw')
     # validate arguments for withdrawal of funds TODO
 
-    raise Exception.new("PIN not set. Use BlockIo.set_options(:api_key=>'API KEY',:pin=>'SECRET PIN',:version=>'API VERSION')") if @pin.nil?
+    raise CiBlockIoWithdrawException.new("PIN not set. Use BlockIo.set_options(:api_key=>'API KEY',:pin=>'SECRET PIN',:version=>'API VERSION')") if @pin.nil?
 
     params = get_params(args)
 
@@ -79,7 +82,7 @@ module CiBlockIo
       # let's get our private key
       key = Helper.extractKey(encrypted_passphrase, @encryptionKey)
 
-      raise Exception.new('Public key mismatch for requested signer and ourselves. Invalid Secret PIN detected.') if key.public_key != response['data']['encrypted_passphrase']['signer_public_key']
+      raise CiBlockIoWithdrawException.new('Public key mismatch for requested signer and ourselves. Invalid Secret PIN detected.') if key.public_key != response['data']['encrypted_passphrase']['signer_public_key']
 
       # let's sign all the inputs we can
       inputs = response['data']['inputs']
@@ -145,7 +148,14 @@ module CiBlockIo
       
     begin
       body = Oj.load(response.body)
-      raise Exception.new(body['data']['error_message']) if !body['status'].eql?('success')
+      return unless body['status'].eql?('success')
+      case endpoint[0]
+      when 'withdraw' then
+        raise CiBlockIoWithdrawException.new(body['data']['error_message'])
+      else
+        raise Exception.new(body['data']['error_message'])
+      end
+    end
     rescue
       raise Exception.new('Unknown error occurred. Please report this.')
     end
