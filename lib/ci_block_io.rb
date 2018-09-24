@@ -30,18 +30,18 @@ module CiBlockIo
     # initialize BlockIo
     @api_key = args[:api_key]
     @pin = args[:pin]
-    
+
     @encryptionKey = Helper.pinToAesKey(@pin) if !@pin.nil?
 
     hostname = args[:hostname] || "block.io"
     @base_url = "https://" << hostname << "/api/VERSION/API_CALL/?api_key="
-    
+
     @client = HTTPClient.new
     @client.tcp_keepalive = true
     @client.ssl_config.ssl_version = :auto
-    
+
     @version = args[:version] || 2 # default version is 2
-    
+
     self.api_call(['get_balance',""])
   end
 
@@ -59,7 +59,7 @@ module CiBlockIo
       params = get_params(args.first)
       self.api_call([method_name, params])
     end
-    
+
   end 
 
   def self.withdraw(args = {}, method_name = 'withdraw')
@@ -72,7 +72,7 @@ module CiBlockIo
     params << "&pin=" << @pin if @version == 1 # Block.io handles the Secret PIN in the legacy API (v1)
 
     response = self.api_call([method_name, params])
-    
+
     if response['data'].has_key?('reference_id') then
       # Block.io's asking us to provide some client-side signatures, let's get to it
 
@@ -114,7 +114,7 @@ module CiBlockIo
     params = get_params(args)
 
     response = self.api_call([method_name, params])
-    
+
     if response['data'].has_key?('reference_id') then
       # Block.io's asking us to provide some client-side signatures, let's get to it
 
@@ -136,7 +136,7 @@ module CiBlockIo
 
 
   private
-  
+
   def self.api_call(endpoint)
     return @mock_response[endpoint[0]] if @mock_response.keys.include?(endpoint[0])
 
@@ -145,21 +145,19 @@ module CiBlockIo
     return nil if base_url.nil? || @api_key.nil?
 
     response = @client.post(base_url + @api_key, endpoint[1])
-      
+
     begin
       body = Oj.load(response.body)
       return unless body['status'].eql?('success')
       case endpoint[0]
-      when 'withdraw' then
+      when 'withdraw'
         raise CiBlockIoWithdrawException.new(body['data']['error_message'])
       else
         raise Exception.new(body['data']['error_message'])
       end
-    end
     rescue
       raise Exception.new('Unknown error occurred. Please report this.')
     end
-    
     body
   end
 
@@ -169,7 +167,7 @@ module CiBlockIo
     # construct the parameter string
     params = ""
     args = {} if args.nil?
-    
+
     args.each do |k,v|
       params += '&' if params.length > 0
       params += "#{k.to_s}=#{v.to_s}"
@@ -191,23 +189,23 @@ module CiBlockIo
       @compressed = compressed
 
     end 
-    
+
     def private_key
       # returns private key in hex form
       return @private_key.to_s(16)
     end
-    
+
     def public_key
       # returns the compressed form of the public key to save network fees (shorter scripts)
 
       return ECDSA::Format::PointOctetString.encode(@public_key, compression: @compressed).unpack("H*")[0]
     end
-    
+
     def sign(data)
       # signed the given hexadecimal string
 
       nonce = deterministicGenerateK([data].pack("H*"), @private_key) # RFC6979
-      
+
       signature = ECDSA.sign(@group, @private_key, data.to_i(16), nonce)
 
       # BIP0062 -- use lower S values only
@@ -221,14 +219,14 @@ module CiBlockIo
       # DER encode this, and return it in hex form
       return ECDSA::Format::SignatureDerString.encode(signature).unpack("H*")[0]
     end
-    
+
     def self.from_passphrase(passphrase)
       # create a private+public key pair from a given passphrase
       # think of this as your brain wallet. be very sure to use a sufficiently long passphrase
       # if you don't want a passphrase, just use Key.new and it will generate a random key for you
-      
+
       raise Exception.new('Must provide passphrase at least 8 characters long.') if passphrase.nil? or passphrase.length < 8
-      
+
       hashed_key = Helper.sha256([passphrase].pack("H*")) # must pass bytes to sha256
 
       return Key.new(hashed_key)
@@ -246,65 +244,65 @@ module CiBlockIo
       return Key.new(actual_key, compressed)
 
     end
-    
+
     def isPositive(i)
       sig = "!+-"[i <=> 0]
-      
+
       return sig.eql?("+")
     end
-    
+
     def deterministicGenerateK(data, privkey, group = ECDSA::Group::Secp256k1)
       # returns a deterministic K  -- RFC6979
 
       hash = data.bytes.to_a
 
       x = [privkey.to_s(16)].pack("H*").bytes.to_a
-      
+
       k = []
       32.times { k.insert(0, 0) }
-      
+
       v = []
       32.times { v.insert(0, 1) }
-      
+
       # step D
       k = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), [].concat(v).concat([0]).concat(x).concat(hash).pack("C*")).bytes.to_a
-      
+
       # step E
       v = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), v.pack("C*")).bytes.to_a
-      
+
       #  puts "E: " + v.pack("C*").unpack("H*")[0]
-      
+
       # step F
       k = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), [].concat(v).concat([1]).concat(x).concat(hash).pack("C*")).bytes.to_a
-      
+
       # step G
       v = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), v.pack("C*")).bytes.to_a
-      
+
       # step H2b (Step H1/H2a ignored)
       v = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), v.pack("C*")).bytes.to_a
-      
+
       h2b = v.pack("C*").unpack("H*")[0]
       tNum = h2b.to_i(16)
-      
+
       # step H3
       while (!isPositive(tNum) or tNum >= group.order) do
         # k = crypto.HmacSHA256(Buffer.concat([v, new Buffer([0])]), k)
         k = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), [].concat(v).concat([0]).pack("C*")).bytes.to_a
-        
+
         # v = crypto.HmacSHA256(v, k)
         v = OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha256'), k.pack("C*"), v.pack("C*")).bytes.to_a
-        
+
         # T = BigInteger.fromBuffer(v)
         tNum = v.pack("C*").unpack("H*")[0].to_i(16)
       end
-      
+
       return tNum
     end
 
   end
-  
+
   module Helper
-    
+
     def self.signData(inputs, keys)
       # sign the given data with the given keys
       # TODO loop is O(n^3), make it better
@@ -320,7 +318,7 @@ module CiBlockIo
         while j < input['signers'].size do
           # if our public key matches this signer's public key, sign the data
           signer = inputs[i]['signers'][j]
-          
+
           k = 0
           while k < keys.size do
             # sign for each key provided, if we can
@@ -342,19 +340,19 @@ module CiBlockIo
       # passphrase is in plain text
       # encrypted_data is in base64, as it was stored on Block.io
       # returns the private key extracted from the given encrypted data
-      
+
       decrypted = self.decrypt(encrypted_data, b64_enc_key)
-      
+
       return Key.from_passphrase(decrypted)
     end
-    
+
     def self.sha256(value)
       # returns the hex of the hash of the given value
       hash = Digest::SHA2.new(256)
       hash << value
       hash.hexdigest # return hex
     end
-    
+
     def self.pinToAesKey(secret_pin, iterations = 2048)
       # converts the pincode string to PBKDF2
       # returns a base64 version of PBKDF2 pincode
@@ -366,10 +364,10 @@ module CiBlockIo
 
       return Base64.strict_encode64(aes_key_bin) # the base64 encryption key
     end
-    
+
     # Decrypts a block of data (encrypted_data) given an encryption key
     def self.decrypt(encrypted_data, b64_enc_key, iv = nil, cipher_type = 'AES-256-ECB')
-      
+
       response = nil
 
       begin
@@ -385,7 +383,7 @@ module CiBlockIo
 
       return response
     end
-    
+
     # Encrypts a block of data given an encryption key
     def self.encrypt(data, b64_enc_key, iv = nil, cipher_type = 'AES-256-ECB')
       aes = OpenSSL::Cipher.new(cipher_type)
@@ -396,7 +394,7 @@ module CiBlockIo
     end
 
     # courtesy bitcoin-ruby
-    
+
     def self.int_to_base58(int_val, leading_zero_bytes=0)
       alpha = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
       base58_val, base = '', alpha.size
@@ -406,7 +404,7 @@ module CiBlockIo
       end
       base58_val
     end
-    
+
     def self.base58_to_int(base58_val)
       alpha = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
       int_val, base = 0, alpha.size
@@ -416,12 +414,12 @@ module CiBlockIo
       end
       int_val
     end
-    
+
     def self.encode_base58(hex)
       leading_zero_bytes  = (hex.match(/^([0]+)/) ? $1 : '').size / 2
       ("1"*leading_zero_bytes) + Helper.int_to_base58( hex.to_i(16) )
     end
-    
+
     def self.decode_base58(base58_val)
       s = Helper.base58_to_int(base58_val).to_s(16); s = (s.bytesize.odd? ? '0'+s : s)
       s = '' if s == '00'
@@ -430,5 +428,4 @@ module CiBlockIo
       s
     end
   end
-
 end
