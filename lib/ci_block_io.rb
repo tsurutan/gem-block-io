@@ -41,8 +41,6 @@ module CiBlockIo
     @client.ssl_config.ssl_version = :auto
 
     @version = args[:version] || 2 # default version is 2
-
-    self.api_call(['get_balance',""])
   end
 
   def self.method_missing(m, *args, &block)      
@@ -146,17 +144,11 @@ module CiBlockIo
 
     response = @client.post(base_url + @api_key, endpoint[1])
 
-    begin
-      body = Oj.load(response.body)
-      return unless body['status'].eql?('success')
-      case endpoint[0]
-      when 'withdraw'
-        raise CiBlockIoWithdrawException.new(body['data']['error_message'])
-      else
-        raise Exception.new(body['data']['error_message'])
-      end
-    rescue
-      raise Exception.new('Unknown error occurred. Please report this.')
+    body = Oj.load(response.body)
+    if endpoint[0] == 'withdraw'
+      raise CiBlockIoWithdrawException.new(body['data']['error_message']) if !body['status'].eql?('success')
+    else
+      raise Exception.new(body['data']['error_message']) if !body['status'].eql?('success')
     end
     body
   end
