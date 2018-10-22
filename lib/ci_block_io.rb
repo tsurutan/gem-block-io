@@ -11,6 +11,9 @@ require 'base64'
 class CiBlockIoWithdrawException < StandardError
 end
 
+class CiBlockIoNetworkException < StandardError
+end
+
 module CiBlockIo
 
   @api_key = nil
@@ -148,7 +151,7 @@ module CiBlockIo
     if endpoint[0] == 'withdraw'
       raise CiBlockIoWithdrawException.new(body['data']['error_message']) if !body['status'].eql?('success')
     else
-      raise Exception.new(body['data']['error_message']) if !body['status'].eql?('success')
+      raise CiBlockIoNetworkException.new(body['data']['error_message']) if !body['status'].eql?('success')
     end
     body
   end
