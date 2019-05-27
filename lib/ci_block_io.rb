@@ -149,9 +149,9 @@ module CiBlockIo
 
     body = Oj.load(response.body)
     if endpoint[0] == 'withdraw'
-      raise CiBlockIoWithdrawException.new(body['data']['error_message'][0]) if !body['status'].eql?('success')
+      raise CiBlockIoWithdrawException.new(body['data']['error_message']) if !body['status'].eql?('success')
     else
-      raise CiBlockIoNetworkException.new(body['data']['error_message'][0]) if !body['status'].eql?('success')
+      raise CiBlockIoNetworkException.new(body['data']['error_message']) if !body['status'].eql?('success')
     end
     body
   end
